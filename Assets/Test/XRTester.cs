@@ -1,15 +1,26 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.Interaction.Toolkit.AR;
 
 public class XRTester : MonoBehaviour
 {
+	public static XRTester Instance;
+
 	[SerializeField] private GameObject cubePrefab;
 	[SerializeField] private GameObject ARSessionOrigin;
+	[SerializeField] private GameObject Board;
+	[SerializeField] private ARSessionOrigin arseor;
+
+
 	private GameObject eventSystemObj;
 
+	private void Awake()
+	{
+		if(Instance == null)
+			Instance = this;
+	}
 
 
 	private void Start()
@@ -29,20 +40,29 @@ public class XRTester : MonoBehaviour
 		cube.transform.localScale = Vector3.one * 0.1f;
 		cube.transform.localPosition = Camera.main.transform.localPosition + Camera.main.transform.forward;
 		cube.transform.SetParent(ARSessionOrigin.transform);
-		//var selected = cube.AddComponent<ARSelectionInteractable>();
-		//selected.selectionVisualization = cube.transform.GetChild(0).gameObject;
-		//selected.ARse = 
 
-		//var tt = cube.AddComponent<ARTransCustom>();
+		var selected = cube.AddComponent<ARSelectionInteractable>();
+		selected.selectionVisualization = cube.transform.GetChild(0).gameObject;
+		
+		var trans = cube.AddComponent<ARTransCustom>();
 
+		var scal = cube.AddComponent<ARScaleInteractable>();
+		scal.maxScale = 0.5f;
+		scal.minScale = 0.01f;
+		
+		var rots = cube.AddComponent<ARRotationInteractable>();
 
 	}
 
-	public void Update()
+	public IEnumerator PlaneFollowCamera(float dist)
 	{
-		if(Input.GetKeyDown(KeyCode.P))
+		while(true)
 		{
-			SpawnGameObject();
+			Vector3 endpos = Camera.main.transform.position + (Camera.main.transform.forward * dist);
+
+			Board.transform.position = endpos;
+			Board.transform.LookAt(Camera.main.transform);
+			yield return null;
 		}
 	}
 }

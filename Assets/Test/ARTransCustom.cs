@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.AR;
@@ -52,17 +51,15 @@ public class ARTransCustom : ARBaseGestureInteractable
 	bool m_IsActive;
 
 	Vector3 m_DesiredLocalPosition;
-	float m_GroundingPlaneHeight;
-	Vector3 m_DesiredAnchorPosition;
-	Quaternion m_DesiredRotation;
-	GestureTransformationUtility.Placement m_LastPlacement;
+	IEnumerator FollowRayCastPlane = null;
 
 	/// <inheritdoc />
 	public override void ProcessInteractable(XRInteractionUpdateOrder.UpdatePhase updatePhase)
 	{
 		base.ProcessInteractable(updatePhase);
 
-		if (updatePhase == XRInteractionUpdateOrder.UpdatePhase.Dynamic)
+		if (m_IsActive)
+			//UpdateDistance();
 			UpdatePosition();
 	}
 
@@ -76,7 +73,6 @@ public class ARTransCustom : ARBaseGestureInteractable
 	/// <inheritdoc />
 	protected override void OnStartManipulation(DragGesture gesture)
 	{
-		m_GroundingPlaneHeight = transform.parent.position.y;
 	}
 
 	/// <inheritdoc />
@@ -90,72 +86,35 @@ public class ARTransCustom : ARBaseGestureInteractable
 
 		m_IsActive = true;
 
-		var desiredPlacement = xrOrigin != null
-			? GestureTransformationUtility.GetBestPlacementPosition(
-				transform.parent.position, gesture.position, m_GroundingPlaneHeight, 0.03f,
-				maxTranslationDistance, objectGestureTranslationMode, xrOrigin, fallbackLayerMask: m_FallbackLayerMask)
-#pragma warning disable 618 // Calling deprecated method to help with backwards compatibility.
-			: GestureTransformationUtility.GetBestPlacementPosition(
-				transform.parent.position, gesture.position, m_GroundingPlaneHeight, 0.03f,
-				maxTranslationDistance, objectGestureTranslationMode, arSessionOrigin, fallbackLayerMask: m_FallbackLayerMask);
-#pragma warning restore 618
-
-		if (desiredPlacement.hasHoveringPosition && desiredPlacement.hasPlacementPosition)
+		if(FollowRayCastPlane == null)
 		{
-			// If desired position is lower than current position, don't drop it until it's finished.
-			m_DesiredLocalPosition = transform.parent.InverseTransformPoint(desiredPlacement.hoveringPosition);
-			m_DesiredAnchorPosition = desiredPlacement.placementPosition;
+			float dis = Vector3.Distance(Camera.main.transform.position , transform.position);
+			FollowRayCastPlane = XRTester.Instance.PlaneFollowCamera(dis);
 
-			m_GroundingPlaneHeight = desiredPlacement.updatedGroundingPlaneHeight;
+			StartCoroutine(FollowRayCastPlane);
+		}
 
-			// Rotate if the plane direction has changed.
-			if (((desiredPlacement.placementRotation * Vector3.up) - transform.up).magnitude > k_DiffThreshold)
-				m_DesiredRotation = desiredPlacement.placementRotation;
-			else
-				m_DesiredRotation = transform.rotation;
-
-			if (desiredPlacement.hasPlane)
-				m_LastPlacement = desiredPlacement;
+		var ray = Camera.main.ScreenPointToRay(gesture.position);
+		if (Physics.Raycast(ray, out var results, Mathf.Infinity, 1 << 27))
+		{
+			m_DesiredLocalPosition = results.point;
 		}
 	}
 
 	/// <inheritdoc />
 	protected override void OnEndManipulation(DragGesture gesture)
 	{
-		if (!m_LastPlacement.hasPlacementPosition)
-			return;
-
-		var oldAnchor = transform.parent.gameObject;
-		var desiredPose = new Pose(m_DesiredAnchorPosition, m_LastPlacement.placementRotation);
-
-		var desiredLocalPosition = transform.parent.InverseTransformPoint(desiredPose.position);
-
-		if (desiredLocalPosition.magnitude > maxTranslationDistance)
-			desiredLocalPosition = desiredLocalPosition.normalized * maxTranslationDistance;
-		desiredPose.position = transform.parent.TransformPoint(desiredLocalPosition);
-
-		var anchor = new GameObject("PlacementAnchor").transform;
-		anchor.position = m_LastPlacement.placementPosition;
-		anchor.rotation = m_LastPlacement.placementRotation;
-		transform.parent = anchor;
-
-		Destroy(oldAnchor);
-
 		m_DesiredLocalPosition = Vector3.zero;
 
-		// Rotate if the plane direction has changed.
-		if (((desiredPose.rotation * Vector3.up) - transform.up).magnitude > k_DiffThreshold)
-			m_DesiredRotation = desiredPose.rotation;
-		else
-			m_DesiredRotation = transform.rotation;
+		if(FollowRayCastPlane != null)
+			StopCoroutine(FollowRayCastPlane);
 
-		// Make sure position is updated one last time.
-		m_IsActive = true;
+		FollowRayCastPlane = null;
 	}
 
 	void UpdatePosition()
 	{
-		if (!m_IsActive)
+		if (!m_IsActive || m_DesiredLocalPosition == Vector3.zero)
 			return;
 
 		// Lerp position.
@@ -171,11 +130,5 @@ public class ARTransCustom : ARBaseGestureInteractable
 		}
 
 		transform.localPosition = newLocalPosition;
-
-		// Lerp rotation.
-		var oldRotation = transform.rotation;
-		var newRotation =
-			Quaternion.Lerp(oldRotation, m_DesiredRotation, Time.deltaTime * k_PositionSpeed);
-		transform.rotation = newRotation;
 	}
 }
