@@ -1,7 +1,7 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem.UI;
-using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.Interaction.Toolkit.AR;
 
 public class XRTester : MonoBehaviour
@@ -11,8 +11,8 @@ public class XRTester : MonoBehaviour
 	[SerializeField] private GameObject cubePrefab;
 	[SerializeField] private GameObject ARSessionOrigin;
 	[SerializeField] private GameObject Board;
-	[SerializeField] private ARSessionOrigin arseor;
 
+	[SerializeField] public AnchorSystem AnchorSystem;
 
 	private GameObject eventSystemObj;
 
@@ -32,6 +32,8 @@ public class XRTester : MonoBehaviour
 #else
 
 #endif
+
+		AnchorSystem.Init();
 	}
 
 	public void SpawnGameObject()
